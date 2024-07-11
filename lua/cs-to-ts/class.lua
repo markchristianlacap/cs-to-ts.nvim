@@ -25,11 +25,13 @@ local function map_type(type)
     ["int"] = "number",
     ["float"] = "number",
     ["double"] = "number",
+    ["decimal"] = "number",
     ["bool"] = "boolean",
     ["string"] = "string",
     ["Guid"] = "string",
     ["DateTime"] = "Date",
     ["DateOnly"] = "Date",
+    ["TimeOnly"] = "string",
     -- Add more types as needed
   }
   return types[type] or type
