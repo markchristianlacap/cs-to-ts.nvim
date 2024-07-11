@@ -1,24 +1,24 @@
-local enumConverter = require("cs-to-ts.enum")
-local classConverter = require("cs-to-ts.class")
+local enum_converter = require("cs-to-ts.enum")
+local class_converter = require("cs-to-ts.class")
 local M = {}
 
-function M.convert(csharpCode)
-  local tsCode = ""
-  local className = csharpCode:match("class%s+(%w+)")
-  local enumName = csharpCode:match("enum%s+(%w+)")
+function M.convert(csharp_code)
+  local ts_code = ""
+  local class_name = csharp_code:match("class%s+(%w+)")
+  local enum_name = csharp_code:match("enum%s+(%w+)")
 
-  if className then
-    tsCode = classConverter.convertCsToTsInterface(csharpCode)
-  elseif enumName then
-    tsCode = enumConverter.convertCsToTSEnum(csharpCode)
+  if class_name then
+    ts_code = class_converter.convert_cs_to_ts(csharp_code)
+  elseif enum_name then
+    ts_code = enum_converter.convertCsToTSEnum(csharp_code)
   else
     return nil, "No valid class or enum found"
   end
 
-  return tsCode
+  return ts_code
 end
 
-function M.getSelectedText()
+function M.get_selected_text()
   local s_start = vim.fn.getpos("'<")
   local s_end = vim.fn.getpos("'>")
   local n_lines = math.abs(s_end[2] - s_start[2]) + 1

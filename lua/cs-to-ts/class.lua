@@ -1,90 +1,90 @@
 local M = {}
-local function camelCase(str)
-	if #str == 0 then
-		return str
-	end
-	return str:sub(1, 1):lower() .. str:sub(2)
+local function to_camel(str)
+  if #str == 0 then
+    return str
+  end
+  return str:sub(1, 1):lower() .. str:sub(2)
 end
 -- Utility function to split strings
 local function split(str, delim)
-	local result = {}
-	local pattern = string.format("([^%s]+)", delim)
-	string.gsub(str, pattern, function(c)
-		result[#result + 1] = c
-	end)
-	return result
+  local result = {}
+  local pattern = string.format("([^%s]+)", delim)
+  string.gsub(str, pattern, function(c)
+    result[#result + 1] = c
+  end)
+  return result
 end
-function hasNullable(csharpType)
-	return string.find(csharpType, "%?$") ~= nil
+local function is_nullable(type)
+  return string.find(type, "%?$") ~= nil
 end
 
 -- Function to map C# types to TypeScript types
-local function mapType(csharpType)
-	csharpType = csharpType:gsub("%?$", "")
-	local typeMap = {
-		["int"] = "number",
-		["float"] = "number",
-		["double"] = "number",
-		["bool"] = "boolean",
-		["string"] = "string",
-		["Guid"] = "string",
-		["DateTime"] = "Date",
-		["DateOnly"] = "Date",
-		-- Add more types as needed
-	}
-	return typeMap[csharpType] or csharpType
+local function map_type(type)
+  type = type:gsub("%?$", "")
+  local types = {
+    ["int"] = "number",
+    ["float"] = "number",
+    ["double"] = "number",
+    ["bool"] = "boolean",
+    ["string"] = "string",
+    ["Guid"] = "string",
+    ["DateTime"] = "Date",
+    ["DateOnly"] = "Date",
+    -- Add more types as needed
+  }
+  return types[type] or type
 end
 
 -- Function to parse a C# class definition
-local function parseCSharpClass(csharpClass)
-	local lines = split(csharpClass, "\n")
-	local className = ""
-	local properties = {}
+local function parse_class(class)
+  local lines = split(class, "\n")
+  local class_name = ""
+  local properties = {}
 
-	for _, line in ipairs(lines) do
-		line = line:match("^%s*(.-)%s*$") -- Trim whitespace
+  for _, line in ipairs(lines) do
+    line = line:match("^%s*(.-)%s*$") -- Trim whitespace
 
-		if string.find(line, "^public class") then
-			className = string.match(line, "public class (%w+)")
-		elseif string.find(line, "^public") then
-			local isMethod = string.find(line, "%(")
-			local isReadOnlyProp = string.find(line, "=>")
-			if not isMethod or isReadOnlyProp then
-				local propType, propName = string.match(line, "public (%w+) (%w+)")
-				propName = camelCase(propName)
-				local isNullable = hasNullable(propType)
-				propType = mapType(propType)
-				if isNullable then
-					propName = propName .. "?"
-				end
-				properties[#properties + 1] = { name = propName, propType = propType, isNullable = isNullable }
-			end
-		end
-	end
+    if string.find(line, "^public class") then
+      class_name = string.match(line, "public class (%w+)")
+    elseif string.find(line, "^public") then
+      local method = string.find(line, "%(")
+      local readonly = string.find(line, "=>")
+      if not method or readonly then
+        local type, name = line:match("^public ([%w_:%.<>?]+)%s+([%w_:%.]+)")
+        name = to_camel(name)
+        local nullable = is_nullable(type)
+        type = map_type(type)
+        if nullable then
+          name = name .. "?"
+        end
+        properties[#properties + 1] = { name = name, type = type, nullable = nullable }
+      end
+    end
+  end
 
-	return className, properties
+  return class_name, properties
 end
 
 -- Function to generate TypeScript interface
-local function generateTSInterface(className, properties)
-	local tsInterface = "export interface " .. className .. " {\n"
+local function generate_interface(class, props)
+  local interface = "export interface " .. class .. " {\n"
 
-	for _, prop in ipairs(properties) do
-		local propType = prop.propType
-		if prop.isNullable then
-			propType = propType .. " | null"
-		end
-		tsInterface = tsInterface .. "    " .. prop.name .. ": " .. propType .. ";\n"
-	end
+  for _, prop in ipairs(props) do
+    local type = prop.type
+    if prop.nullable then
+      type = type .. " | null"
+    end
+    interface = interface .. "    " .. prop.name .. ": " .. type .. ";\n"
+  end
 
-	tsInterface = tsInterface .. "}\n"
-	return tsInterface
+  interface = interface .. "}\n"
+  return interface
 end
 
 -- Main function to convert C# class to TypeScript interface
-function M.convertCsToTsInterface(csharpClass)
-	local className, properties = parseCSharpClass(csharpClass)
-	return generateTSInterface(className, properties)
+function M.convert_cs_to_ts(csharpClass)
+  local class, props = parse_class(csharpClass)
+  return generate_interface(class, props)
 end
 
 return M
