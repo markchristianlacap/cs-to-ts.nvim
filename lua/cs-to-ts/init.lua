@@ -1,79 +1,96 @@
+local utils = require("cs-to-ts.utils")
 local M = {
-	maps = {
-		["string"] = "string",
-		["bool"] = "boolean",
-		["int"] = "number",
-		["uint"] = "number",
-		["long"] = "number",
-		["ulong"] = "number",
-		["float"] = "number",
-		["double"] = "number",
-		["DateTime"] = "Date",
-		["DateTimeOffset"] = "Date",
-		["TimeSpan"] = "number",
-		["Guid"] = "string",
-		["object"] = "any",
-	},
-	ignores = {
-		"class",
-		"void",
-		"async",
-		"static",
-		"Task",
-	},
+  maps = {
+    ["string"] = "string",
+    ["bool"] = "boolean",
+    ["int"] = "number",
+    ["uint"] = "number",
+    ["long"] = "number",
+    ["ulong"] = "number",
+    ["float"] = "number",
+    ["double"] = "number",
+    ["DateTime"] = "Date",
+    ["DateTimeOffset"] = "Date",
+    ["TimeSpan"] = "number",
+    ["Guid"] = "string",
+    ["object"] = "any",
+  },
+  ignores = {
+    "class",
+    "void",
+    "async",
+    "static",
+    "Task",
+  },
+  camel_case = true,
 }
-local function className(str)
-	return str:match("public class%s+(%w+)%s*")
+local function class_name(str)
+  return str:match("public class%s+(%w+)%s*")
 end
 
-local extendedClass = function(str)
-	local _, class = str:match("public class%s+(%w+)%s+:%s+(%w+)%s*")
-	return class
+local extended_class = function(str)
+  local _, class = str:match("public class%s+(%w+)%s+:%s+(%w+)%s*")
+  return class
 end
-local function shouldIgnore(name, type)
-	for _, str in ipairs(M.ignores) do
-		if str == name or str == type then
-			return true
-		end
-	end
-	return false
+local function should_ignore(name, type)
+  for _, str in ipairs(M.ignores) do
+    if str == name or str == type then
+      return true
+    end
+  end
+  return false
 end
-local function isNullable(str)
-	return string.find(str, "?")
+local function is_nullable(str)
+  return string.find(str, "?")
 end
 -- get properties from class and map to {name, type, nullable}
-local function getProperties(str)
-	local properties = {}
-	for type, name in str:gmatch("public%s+([%w?]+)%s*([%w]+)%s*") do
-		-- check if needs to ignore
-		if shouldIgnore(name, type) then
-			goto next
-		end
-		local nullable = isNullable(type)
-		type = string.gsub(type, "%?", "")
-		table.insert(properties, { name = name, type = type, nullable = nullable })
-		::next::
-	end
-	return properties
+local function get_properties(str)
+  local properties = {}
+  for type, name in str:gmatch("public%s+([%w?]+)%s*([%w]+)%s*") do
+    -- check if needs to ignore
+    if should_ignore(name, type) then
+      goto next
+    end
+    local nullable = is_nullable(type)
+    type = string.gsub(type, "%?", "")
+    if M.camel_case then
+      name = utils.to_camelcase(name)
+    end
+    table.insert(properties, { name = name, type = type, nullable = nullable })
+    ::next::
+  end
+  return properties
 end
 
-function M.convert(str)
-	local class = className(str)
-	local extended = extendedClass(str)
-	local interface = "export interface " .. class
-	if not extended == nil then
-		interface = interface .. " : " .. extended
-	end
-	interface = interface .. " {"
-	for _, prop in ipairs(getProperties(str)) do
-		interface = interface .. "\n  " .. prop.name
-		if prop.nullable then
-			interface = interface .. "?"
-		end
-		interface = interface .. ": " .. (M.maps[prop.type] or prop.type)
-	end
-	interface = interface .. "\n}"
-	return interface
+local function generate_interface(class_code)
+  local class = class_name(class_code)
+  if class == nil then
+    return nil
+  end
+  local extended = extended_class(class_code)
+  local interface = "export interface " .. class
+  if extended ~= nil then
+    interface = interface .. " extends " .. extended
+  end
+  interface = interface .. " {"
+  for _, prop in ipairs(get_properties(class_code)) do
+    interface = interface .. "\n  " .. prop.name
+    if prop.nullable then
+      interface = interface .. "?"
+    end
+    interface = interface .. ": " .. (M.maps[prop.type] or prop.type)
+  end
+  interface = interface .. "\n}"
+  return interface
+end
+
+function M.convert(code)
+  local classes = utils.split_classes(code)
+  local interfaces = {}
+  for _, class in ipairs(classes) do
+    table.insert(interfaces, generate_interface(class))
+  end
+  return table.concat(interfaces, "\n\n")
 end
 
 return M

@@ -1,85 +1,62 @@
 local M = {}
 
-function M.getSelected()
-	-- Save the current mode
-	local current_mode = vim.fn.mode()
-	-- If not in visual mode, return empty
-	if current_mode ~= "v" and current_mode ~= "V" and current_mode ~= "<C-v>" then
-		return ""
-	end
+function M.get_visual_selection()
+	-- Get the current buffer
+	local bufnr = vim.api.nvim_get_current_buf()
 
 	-- Get the start and end positions of the visual selection
 	local start_pos = vim.fn.getpos("'<")
 	local end_pos = vim.fn.getpos("'>")
 
-	local start_line = start_pos[2]
-	local start_col = start_pos[3]
-	local end_line = end_pos[2]
-	local end_col = end_pos[3]
+	-- Adjust the positions (Neovim API is 0-indexed, but vim.fn.getpos returns 1-indexed positions)
+	local start_line = start_pos[2] - 1
+	local start_col = start_pos[3] - 1
+	local end_line = end_pos[2] - 1
+	local end_col = end_pos[3] - 1
 
-	-- Get the lines in the visual selection
-	local lines = vim.fn.getline(start_line, end_line)
+	-- Ensure the end column is greater than the start column
+	if end_col < start_col then
+		end_col = start_col
+	end
 
-	-- If only one line is selected, slice it
+	-- Get the lines within the visual selection
+	local lines = vim.api.nvim_buf_get_lines(bufnr, start_line, end_line + 1, false)
+
+	-- Handle single-line and multi-line selections
 	if #lines == 1 then
-		lines[1] = string.sub(lines[1], start_col, end_col)
+		lines[1] = string.sub(lines[1], start_col + 1, end_col + 1)
 	else
-		-- For the first line, slice from the start column
-		lines[1] = string.sub(lines[1], start_col)
-		-- For the last line, slice up to the end column
-		lines[#lines] = string.sub(lines[#lines], 1, end_col)
+		lines[1] = string.sub(lines[1], start_col + 1)
+		lines[#lines] = string.sub(lines[#lines], 1, end_col + 1)
 	end
+
+	-- Join the lines into a single string
+	return table.concat(lines, "\n")
 end
 
-function M.findCsproj()
-	local current_dir = vim.fn.expand("%:p:h") -- Get the current directory
-	local parent_dir = current_dir
-	while parent_dir ~= "" do
-		local csproj_files = vim.fn.readdir(parent_dir)
-		for _, file in ipairs(csproj_files) do
-			if file:match("%.csproj$") then
-				return parent_dir .. "/" .. file
-			end
-		end
-		parent_dir = vim.fn.fnamemodify(parent_dir, ":h") -- Move to the parent directory
-	end
-	return nil -- If no .csproj file is found -- If no .csproj file is found
+--function to convert string to camelCase from PascalCase
+function M.to_camelcase(str)
+	return str:gsub("(%u)([%w_']*)", function(first, rest)
+		return first:lower() .. rest
+	end)
 end
 
--- Function to generate the namespace based on the project structure
-function M.generate()
-	-- Find the nearest .csproj file
-	local csproj_path = M.findCsproj()
-	if csproj_path then
-		-- Extract project name from .csproj file
-		local project_name = vim.fn.fnamemodify(csproj_path, ":t:r")
-
-		-- Get the full path of the current file
-		local current_file = vim.fn.expand("%:p")
-
-		-- Get the directory of the .csproj file
-		local project_dir = vim.fn.fnamemodify(csproj_path, ":h")
-
-		-- Get the relative path from the project root
-		local relative_path = vim.fn.fnamemodify(current_file, ":~:.")
-
-		-- Convert relative path to namespace format
-		local namespace = string.gsub(relative_path, "/", ".") -- Replace slashes with dots
-		namespace = string.gsub(namespace, "^%./", "") -- Remove leading './'
-		namespace = string.gsub(namespace, "/%.", ".") -- Remove intermediate './'
-		namespace = string.gsub(namespace, "/$", "") -- Remove trailing '/'
-		namespace = string.gsub(namespace, "^.-%.", "") -- Remove leading folders up to and including 'Api.'
-
-		-- Remove '.cs' extension
-		namespace = string.gsub(namespace, ".cs$", "")
-
-		-- Combine project name and namespace
-		local full_namespace = project_name .. "." .. namespace
-		return full_namespace
-	else
-		-- If no .csproj file is found, return nil
-		return nil
+function split_classes(code)
+	local classes = {}
+	local pattern = "public class.-%b{}"
+	for class_definition in code:gmatch(pattern) do
+		table.insert(classes, class_definition)
 	end
+	return classes
+end
+
+function M.split_classes(code)
+	local classes = {}
+	local pattern = "public class.-%b{}"
+	for class_definition in code:gmatch(pattern) do
+		table.insert(classes, class_definition)
+	end
+	return classes
 end
 
 return M
