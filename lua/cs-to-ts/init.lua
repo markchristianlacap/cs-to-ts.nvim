@@ -8,9 +8,10 @@ local M = {
     ["long"] = "number",
     ["ulong"] = "number",
     ["float"] = "number",
+    ["decimal"] = "number",
     ["double"] = "number",
-    ["DateTime"] = "Date",
-    ["DateTimeOffset"] = "Date",
+    ["DateTime"] = "string",
+    ["DateTimeOffset"] = "string",
     ["TimeSpan"] = "number",
     ["Guid"] = "string",
     ["object"] = "any",
@@ -46,11 +47,18 @@ end
 -- get properties from class and map to {name, type, nullable}
 local function get_properties(str)
   local properties = {}
-  for type, name in str:gmatch("public%s+([%w?]+)%s*([%w]+)%s*") do
+  for type, name in str:gmatch("public%s+([^%s]+)%s+([^%s]+)%s*") do
     -- check if needs to ignore
     if should_ignore(name, type) then
       goto next
     end
+    local list_type = string.match(type, "List<(.+)>")
+        or string.match(type, "IEnumerable<(.+)>")
+        or string.match(type, "IList<(.+)>")
+    if list_type ~= nil then
+      type = list_type .. "[]"
+    end
+
     local nullable = is_nullable(type)
     type = string.gsub(type, "%?", "")
     if M.camel_case then
