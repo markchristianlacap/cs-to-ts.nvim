@@ -52,6 +52,10 @@ local function get_properties(str)
     if should_ignore(name, type) then
       goto next
     end
+    -- if type contains new
+    if string.find(type, "new") then
+      type, name = str:match("public%s+new%s+(%w+<%w+>)%s+(%w+)%s*{")
+    end
     local list_type = string.match(type, "List<(.+)>")
         or string.match(type, "IEnumerable<(.+)>")
         or string.match(type, "IList<(.+)>")
